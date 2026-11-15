@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # يبني IPA غير موقّع لأمانة (يُوقَّع لاحقاً بتطبيق التوقيع)
 set -euo pipefail
-VER="${VER:-1.1}"
+VER="${VER:-1.2}"
 XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)
 if [ -n "$XC" ]; then sudo xcode-select -s "$XC/Contents/Developer"; fi
 echo "== أدوات" ; node -v ; xcodebuild -version

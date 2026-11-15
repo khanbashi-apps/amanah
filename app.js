@@ -1,6 +1,6 @@
-/* أمانة — Amanah v1.1 — تطبيق ويب لإدارة الديون والسلفيات (يعمل بدون إنترنت) */
+/* أمانة — Amanah v1.2 — تطبيق ويب لإدارة الديون والسلفيات (يعمل بدون إنترنت) */
 'use strict';
-const VERSION = 'v1.1';
+const VERSION = 'v1.2';
 
 /* ---------- أدوات ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -23,6 +23,7 @@ const fmtr = (k, o) => _f[k] || (_f[k] = new Intl.DateTimeFormat(LOC, o));
 const fDate = d => fmtr('d', { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
 const fDM = d => fmtr('dm', { day: 'numeric', month: 'long' }).format(d);
 const fMY = d => fmtr('my', { month: 'long', year: 'numeric' }).format(d);
+const fDMY = d => d.getFullYear() === new Date().getFullYear() ? fDM(d) : fDate(d);
 const fMon = d => fmtr('m', { month: 'long' }).format(d);
 const daysBetween = (a, b) => Math.round((b - a) / 86400000);
 const rid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
@@ -244,6 +245,7 @@ let frontId = null;
 let curSheet = null;
 let share = null; // حالة شاشة المشاركة
 let locked = false;
+let lastPayTap = 0;
 
 function go(v) { view = v; render(); window.scrollTo(0, 0); }
 function applyMode() { document.documentElement.dataset.mode = S.settings.mode || 'auto'; }
@@ -296,12 +298,12 @@ function footHTML(d, c) {
   const cell = (l, v) => `<span>${l}<b class="num">${v}</b></span>`;
   if (c.m > 0 && !c.settled) return cell('القسط', fmt(c.m) + ' ر.ع') + cell('الاستحقاق', fDM(c.nextDate)) + cell('النهاية', fMY(c.endDate));
   if (c.settled) return cell('الإجمالي', fmt(c.total) + ' ر.ع') + cell('آخر دفعة', c.lastPay ? fDM(pd(c.lastPay)) : '—') + cell('البدء', fMY(pd(d.start)));
-  return cell('الإجمالي', fmt(c.total) + ' ر.ع') + cell('المسدَّد', fmt(c.paid) + ' ر.ع') + cell('البدء', fDM(pd(d.start)));
+  return cell('الإجمالي', fmt(c.total) + ' ر.ع') + cell('المسدَّد', fmt(c.paid) + ' ر.ع') + cell('البدء', fDMY(pd(d.start)));
 }
 function infoLines(d, c) {
   const L = [];
   if (c.settled) L.push('تمت تسوية الحساب بالكامل');
-  else if (c.dueNow) L.push(`<b>مستحق الآن: ${fmt(c.behind)} ر.ع</b> · منذ ${fDM(c.nextDate)}`);
+  else if (c.dueNow) L.push(`<b>مستحق الآن: ${fmt(c.behind)} ر.ع</b> · منذ ${fDMY(c.nextDate)}`);
   else if (c.m > 0) L.push(`القسط القادم ${c.daysToNext === 0 ? 'اليوم' : c.daysToNext === 1 ? 'غداً' : 'بعد ' + daysAr(c.daysToNext)} · ${fmt(c.nextAmount)} ر.ع`);
   else L.push('بدون أقساط شهرية');
   const last = (d.payments || []).map((p, i) => [p, i]).sort((x, y) => x[0].date.localeCompare(y[0].date) || x[1] - y[1]).map(x => x[0]).pop();
@@ -316,7 +318,7 @@ function passHTML(d, c, opt = {}) {
   const chip = st ? `<span class="pchip ${st.k}">${st.t}</span>` : '';
   const sign = d.dir === 'in' ? '+' : MINUS;
   const demo = d.demo ? ' · مثال' : '';
-  const head = `<span class="p-head"><span class="p-name"><b>${esc(d.name)}</b>${opt.back ? '' : `<span>${dirLabel(d)} · منذ ${fDM(pd(d.start))}${demo}</span>`}</span><span class="p-right">${chip}${opt.back ? `<span class="p-mini num">${signed(c.remaining, sign)}</span>` : ''}</span></span>`;
+  const head = `<span class="p-head"><span class="p-name"><b>${esc(d.name)}</b>${opt.back ? '' : `<span>${dirLabel(d)} · منذ ${fDMY(pd(d.start))}${demo}</span>`}</span><span class="p-right">${chip}${opt.back ? `<span class="p-mini num">${signed(c.remaining, sign)}</span>` : ''}</span></span>`;
   if (opt.back) return `<button class="${cls}" style="${style}" data-a="front" data-id="${d.id}" aria-label="إظهار بطاقة ${esc(d.name)}">${head}</button>`;
   const body = `${head}
     <span class="p-amt"><small>${c.settled ? 'تم السداد بالكامل' : 'المتبقي من ' + fmt(c.total) + ' ر.ع'}</small><b class="num">${fmt(c.remaining)} <i>ر.ع</i></b></span>
@@ -355,7 +357,7 @@ function vHome() {
   const soon = all.filter(d => cs.get(d.id).soon);
   due.forEach(d => {
     const c = cs.get(d.id);
-    h += `<div class="banner" role="alert"><span class="dot"></span><span class="txt"><b>${d.dir === 'in' ? 'قسط ' + esc(d.name) + ' مستحق' : 'قسطك لـ' + esc(d.name) + ' مستحق'}</b><span class="num">${fmt(c.payNow)} ر.ع · كان موعده ${fDM(c.nextDate)}</span></span><button class="act" data-a="paymonth" data-id="${d.id}">تم التسديد</button></div>`;
+    h += `<div class="banner" role="alert"><span class="dot"></span><span class="txt"><b>${d.dir === 'in' ? 'قسط ' + esc(d.name) + ' مستحق' : 'قسطك لـ' + esc(d.name) + ' مستحق'}</b><span class="num">${fmt(c.payNow)} ر.ع · كان موعده ${fDMY(c.nextDate)}</span></span><button class="act" data-a="paymonth" data-id="${d.id}">تم التسديد</button></div>`;
   });
   soon.forEach(d => {
     const c = cs.get(d.id);
@@ -432,19 +434,22 @@ function vDetail() {
   const pays = (d.payments || []).map((p, i) => [p, i]).sort((x, y) => y[0].date.localeCompare(x[0].date) || y[1] - x[1]).map(x => x[0]);
   h += `<section class="panel"><h3>سجل الدفعات <small>${pays.length ? pays.length + ' دفعات · ' + fmt(c.paid) + ' ر.ع' : 'لا توجد دفعات بعد'}</small></h3>`;
   pays.forEach(p => {
-    const hasAtt = (d.attachments || []).some(a => a.payId === p.id);
-    const kind = p.kind === 'installment' ? 'قسط ' + fMon(pd(p.date)) : p.kind === 'partial' ? 'دفعة جزئية' : 'دفعة';
-    h += `<div class="li"><span class="l"><span>${kind}${p.note ? ' · ' + esc(p.note) : ''}</span><small>${fDate(pd(p.date))}${hasAtt ? ' · مع إيصال' : ''}</small></span><span class="r"><span class="num ${d.dir === 'in' ? 'plus' : 'minus'}">${fmt(p.amount)} ر.ع</span><button class="x" data-a="delpay" data-id="${d.id}" data-p="${p.id}" aria-label="حذف الدفعة">${IC.trash}</button></span></div>`;
+    const n = (d.attachments || []).filter(a => a.payId === p.id).length;
+    h += `<div class="li"><button class="l pl" data-a="editpay" data-id="${d.id}" data-p="${p.id}"><span>${payLabel(d, p)}${p.note ? ' · ' + esc(p.note) : ''}</span><small>${fDate(pd(p.date))}${n ? ` · <span class="clipn">${IC.clip}${n > 1 ? n : ''}</span>` : ''}</small></button><span class="r"><span class="num ${d.dir === 'in' ? 'plus' : 'minus'}">${fmt(p.amount)} ر.ع</span><button class="x" data-a="delpay" data-id="${d.id}" data-p="${p.id}" aria-label="حذف الدفعة">${IC.trash}</button></span></div>`;
   });
+  if (pays.length) h += `<p class="hint" style="padding-top:6px">اضغط على أي دفعة لتعديل مبلغها أو تاريخها أو إرفاق إثباتها</p>`;
   h += `</section>`;
 
-  const atts = d.attachments || [];
-  h += `<section class="panel"><h3>المرفقات والإثباتات <small>${atts.length || ''}</small></h3><div class="atts">`;
-  atts.forEach(a => {
-    const lbl = a.kind === 'receipt' ? 'إيصال' : a.kind === 'agreement' ? 'اتفاق' : 'مستند';
-    h += `<button class="att" data-a="viewatt" data-id="${d.id}" data-att="${a.id}">${a.type === 'image' ? `<img data-fid="${a.id}" alt="">` : IC.doc}<span class="lbl">${lbl} · ${fDM(pd(a.date))}</span></button>`;
-  });
-  h += `<button class="att add" data-a="addatt" data-id="${d.id}">${IC.clip}إرفاق</button></div></section>`;
+  const agr = contractAtts(d);
+  h += `<section class="panel"><h3>عقد / اتفاق السلفية <small>${agr.length || ''}</small></h3>`;
+  if (agr.length) {
+    h += `<div class="atts">`;
+    agr.forEach(a => { h += `<button class="att" data-a="viewatt" data-id="${d.id}" data-att="${a.id}">${a.type === 'image' ? `<img data-fid="${a.id}" alt="">` : IC.doc}<span class="lbl">${a.kind === 'agreement' ? 'عقد' : 'مرفق'} · ${a.type === 'pdf' ? 'PDF' : 'صورة'}</span></button>`; });
+    h += `</div><p class="hint" style="padding-top:8px">لتغيير العقد أو حذفه: اضغط «تعديل» أعلى الصفحة.</p>`;
+  } else {
+    h += `<p class="muted" style="font-size:13px">لم يُرفق عقد لهذه السلفية.</p><button class="btn ghost" data-a="edit" data-id="${d.id}" style="height:46px;margin-top:8px;background:var(--surf2)">${IC.clip} إرفاق العقد من «تعديل»</button>`;
+  }
+  h += `</section>`;
 
   h += `<section class="panel"><h3>معلومات</h3>
     <div class="li"><span class="muted">النوع</span><span>${d.dir === 'in' ? 'سلّفتُه (لك)' : 'تسلّفتُ منه (عليك)'}</span></div>
@@ -457,6 +462,92 @@ function vDetail() {
   </section>
   <button class="btn danger" data-a="deldebt" data-id="${d.id}">حذف هذه السلفية</button>`;
   return h;
+}
+
+/* ---------- الدفعات والمرفقات: أدوات ---------- */
+function payLabel(d, p) {
+  const m = +d.monthly || 0, dt = pd(p.date);
+  const mon = fMon(dt) + (dt.getFullYear() !== new Date().getFullYear() ? ' ' + dt.getFullYear() : '');
+  if (m > 0 && Math.abs(+p.amount - m) < 0.0005) return 'قسط ' + mon;
+  return (m > 0 ? 'دفعة جزئية · ' : 'دفعة · ') + mon;
+}
+function contractAtts(d) {
+  const ids = new Set((d.payments || []).map(p => p.id));
+  return (d.attachments || []).filter(a => !a.payId || !ids.has(a.payId));
+}
+const isPdfFile = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '');
+async function storeFile(file, kind, payId) {
+  const isPdf = isPdfFile(file), isImg = (file.type || '').startsWith('image/');
+  if (!isPdf && !isImg) { toast('اختر صورة أو ملف PDF'); return null; }
+  if (file.size > 25 * 1024 * 1024) { toast('الملف أكبر من 25 ميجابايت'); return null; }
+  try {
+    const blob = isImg ? (await compressImage(file)) || file : file;
+    const id = rid(); await fput(id, blob);
+    return { id, kind, name: file.name || (isPdf ? 'مستند.pdf' : 'صورة.jpg'), type: isPdf ? 'pdf' : 'image', date: iso(today()), payId: payId || null };
+  } catch (e) { toast('تعذّر حفظ المرفق'); return null; }
+}
+async function dropAtt(d, a) {
+  d.attachments = (d.attachments || []).filter(x => x.id !== a.id);
+  try { await fdel(a.id); } catch (e) {}
+  if (urlCache.has(a.id)) { URL.revokeObjectURL(urlCache.get(a.id)); urlCache.delete(a.id); }
+}
+/* صندوق ملفات داخل النوافذ: المرفقات الحالية والجديدة مع زر إزالة لكل ملف */
+function filesBox(sh, sel, existing, addLabel) {
+  const st = { keep: existing.map(a => a.id), add: [] };
+  const box = $(sel, sh);
+  const draw = () => {
+    let h = '';
+    existing.filter(a => st.keep.includes(a.id)).forEach(a => {
+      h += `<div class="att" data-ex="${a.id}" role="button" tabindex="0">${a.type === 'image' ? `<img data-fid="${a.id}" alt="">` : IC.doc}<span class="lbl">${a.type === 'pdf' ? 'PDF' : 'صورة'}</span><button class="att-x" data-rmex="${a.id}" aria-label="إزالة الملف">×</button></div>`;
+    });
+    st.add.forEach((n, i) => {
+      h += `<div class="att" data-nw="${i}" role="button" tabindex="0">${n.isPdf ? IC.doc : `<img src="${n.url}" alt="">`}<span class="lbl">${n.isPdf ? 'PDF' : 'صورة'} · جديد</span><button class="att-x" data-rmnw="${i}" aria-label="إزالة الملف">×</button></div>`;
+    });
+    h += `<button class="att add" data-addf>${IC.clip}${addLabel}</button>`;
+    box.innerHTML = h;
+    box.querySelectorAll('img[data-fid]').forEach(async img => { const u = await fileURL(img.dataset.fid); if (u) img.src = u; });
+  };
+  box.addEventListener('click', e => {
+    const t = e.target;
+    if (t.closest('[data-addf]')) {
+      return pickFile(f => {
+        const isPdf = isPdfFile(f);
+        if (!isPdf && !(f.type || '').startsWith('image/')) return toast('اختر صورة أو ملف PDF');
+        st.add.push({ file: f, isPdf, url: isPdf ? '' : URL.createObjectURL(f) }); draw();
+      });
+    }
+    const rx = t.closest('[data-rmex]'); if (rx) { st.keep = st.keep.filter(x => x !== rx.dataset.rmex); return draw(); }
+    const rn = t.closest('[data-rmnw]'); if (rn) { st.add.splice(+rn.dataset.rmnw, 1); return draw(); }
+    const ex = t.closest('[data-ex]'); if (ex) { const a = existing.find(x => x.id === ex.dataset.ex); if (a) previewAtt(a); return; }
+    const nw = t.closest('[data-nw]'); if (nw) { const n = st.add[+nw.dataset.nw]; if (n) previewOverlay(n.isPdf ? null : n.url, n.isPdf ? n.file : null); }
+  });
+  draw();
+  return st;
+}
+async function commitFiles(d, st, existing, kind, payId) {
+  d.attachments = d.attachments || [];
+  for (const a of existing) if (!st.keep.includes(a.id)) await dropAtt(d, a);
+  let failed = 0;
+  for (const n of st.add) { const meta = await storeFile(n.file, kind, payId); if (meta) d.attachments.push(meta); else failed++; }
+  return failed;
+}
+async function previewAtt(a) {
+  if (a.type === 'pdf') { const b = await fget(a.id); return previewOverlay(null, b, a.name); }
+  previewOverlay(await fileURL(a.id), null, a.name, a.id);
+}
+function previewOverlay(imgUrl, pdfBlob, name, fid) {
+  const w = document.createElement('div'); w.className = 'ovl';
+  w.innerHTML = `<button class="ovl-x" aria-label="إغلاق">×</button>
+    ${imgUrl ? `<img src="${imgUrl}" alt="">` : `<div style="display:flex;flex-direction:column;align-items:center;gap:12px;color:#fff"><span style="width:56px;height:56px;display:block">${IC.doc}</span><b>ملف PDF</b></div>`}
+    <button class="btn ghost ovl-share" style="max-width:260px">${IC.share} ${pdfBlob ? 'فتح / مشاركة الملف' : 'مشاركة'}</button>`;
+  w.addEventListener('click', async e => {
+    if (e.target === w || e.target.closest('.ovl-x')) return w.remove();
+    if (e.target.closest('.ovl-share')) {
+      const b = pdfBlob || (fid ? await fget(fid) : await (await fetch(imgUrl)).blob());
+      if (b) shareFile(b, pdfBlob ? (name && /\.pdf$/i.test(name) ? name : 'مستند.pdf') : 'صورة.jpg');
+    }
+  });
+  document.body.appendChild(w);
 }
 
 /* ---------- المشاركة ---------- */
@@ -832,8 +923,12 @@ function formSheet(id) {
     <div id="fm-calc" class="calc"></div>
     <p class="sec-t">لون البطاقة</p>
     <div class="swatches" role="group" aria-label="لون البطاقة">${COLORS.map(c => `<button class="sw ${c.id === 'white' ? 'white' : ''}" data-col="${c.id}" style="background:${c.bg}" aria-label="${c.name}" aria-pressed="${f.color === c.id}"></button>`).join('')}</div>
-    <p class="err" id="fm-err"></p>
-    ${d ? '' : '<p class="hint" style="text-align:right">تستطيع إرفاق صورة الإيصال أو ورقة الاتفاق من صفحة الشخص بعد الحفظ.</p>'}`, sh => {
+    <p class="sec-t">عقد / اتفاق السلفية (اختياري)</p>
+    <div class="atts" id="fm-files"></div>
+    <p class="hint" style="text-align:right">صورة الورقة الموقّعة أو ملف PDF. إيصالات الأقساط تُرفق مع كل دفعة في سجل الدفعات.</p>
+    <p class="err" id="fm-err"></p>`, sh => {
+    const existing = d ? contractAtts(d) : [];
+    const fst = filesBox(sh, '#fm-files', existing, 'إرفاق العقد');
     const upd = () => {
       const total = num($('#fm-total', sh).value), m = num($('#fm-monthly', sh).value);
       const col = COL(f.color); const box = $('#fm-calc', sh);
@@ -851,7 +946,9 @@ function formSheet(id) {
     sh.querySelectorAll('[data-dir]').forEach(b => b.onclick = () => { f.dir = b.dataset.dir; sh.querySelectorAll('[data-dir]').forEach(x => x.setAttribute('aria-pressed', x === b)); });
     sh.querySelectorAll('[data-col]').forEach(b => b.onclick = () => { f.color = b.dataset.col; sh.querySelectorAll('[data-col]').forEach(x => x.setAttribute('aria-pressed', x === b)); upd(); });
     upd();
-    $('#fm-save', sh).onclick = () => {
+    let saving = false;
+    $('#fm-save', sh).onclick = async () => {
+      if (saving) return;
       const err = $('#fm-err', sh);
       const name = $('#fm-name', sh).value.trim();
       const total = num($('#fm-total', sh).value);
@@ -867,8 +964,11 @@ function formSheet(id) {
       }
       const obj = d || { id: rid(), payments: [], attachments: [], createdAt: Date.now() };
       Object.assign(obj, { dir: f.dir, name, phone: $('#fm-phone', sh).value.trim(), total: r3(total), start, monthly: m ? r3(m) : 0, dueDay: +$('#fm-day', sh).value, note: $('#fm-note', sh).value.trim(), color: f.color, updatedAt: Date.now() });
+      saving = true; $('#fm-save', sh).textContent = '…';
+      const failed = await commitFiles(obj, fst, existing, 'agreement', null);
       if (!d) S.debts.push(obj);
       save(); closeSheet();
+      if (failed) setTimeout(() => toast('تعذّر حفظ بعض الملفات'), 2300);
       if (!d) { frontId = obj.id; filter = 'all'; go({ name: 'home' }); toast('تمت إضافة البطاقة'); }
       else { share = null; render(); toast('تم الحفظ'); }
     };
@@ -876,38 +976,64 @@ function formSheet(id) {
 }
 
 /* دفعة جزئية / مخصصة */
-function paySheet(id) {
+function paySheet(id, payId) {
   const d = getDebt(id); const c = calc(d);
-  const def = c.m > 0 ? c.payNow : c.remaining;
+  const p = payId ? (d.payments || []).find(x => x.id === payId) : null;
+  if (payId && !p) return;
+  const maxAmt = r3(c.remaining + (p ? +p.amount : 0));
+  const def = p ? +p.amount : (c.m > 0 ? c.payNow : c.remaining);
   const chips = [];
-  if (c.m > 0) { chips.push([c.payNow, 'القسط ' + fmt(c.payNow)]); chips.push([r3(c.payNow / 2), 'نصف القسط']); }
-  chips.push([c.remaining, 'كامل المتبقي ' + fmt(c.remaining)]);
-  openSheet(`<div class="sh-top"><button data-close>إلغاء</button><b>تسجيل دفعة</b><span style="width:40px"></span></div>
-    <p class="muted" style="text-align:center">${esc(d.name)} · المتبقي ${fmt(c.remaining)} ر.ع</p>
+  if (!p) {
+    if (c.m > 0) { chips.push([c.payNow, 'القسط ' + fmt(c.payNow)]); chips.push([r3(c.payNow / 2), 'نصف القسط']); }
+    chips.push([c.remaining, 'كامل المتبقي ' + fmt(c.remaining)]);
+  }
+  const existing = p ? (d.attachments || []).filter(a => a.payId === p.id) : [];
+  openSheet(`<div class="sh-top"><button data-close>إلغاء</button><b>${p ? 'تعديل الدفعة' : 'تسجيل دفعة'}</b><span style="width:40px"></span></div>
+    <p class="muted" style="text-align:center">${esc(d.name)} · ${p ? 'المتبقي بدون هذه الدفعة ' + fmt(maxAmt) : 'المتبقي ' + fmt(c.remaining)} ر.ع</p>
     <div class="big-input"><input id="py-amt" value="${fmt(def).replace(/,/g, '')}" inputmode="decimal" dir="ltr" aria-label="المبلغ"><span class="muted">ر.ع</span></div>
-    <div class="qchips" style="justify-content:center">${chips.map(([v, t]) => `<button class="qchip" data-v="${v}">${t}</button>`).join('')}</div>
+    ${chips.length ? `<div class="qchips" style="justify-content:center">${chips.map(([v, t]) => `<button class="qchip" data-v="${v}">${t}</button>`).join('')}</div>` : ''}
     <div class="form">
-      <label class="fld">التاريخ<input id="py-date" type="date" value="${iso(today())}"></label>
-      <label class="fld">ملاحظة<input id="py-note" placeholder="اختياري"></label>
+      <label class="fld">تاريخ الدفعة<input id="py-date" type="date" value="${p ? esc(p.date) : iso(today())}"></label>
+      <label class="fld">ملاحظة<input id="py-note" value="${p ? esc(p.note || '') : ''}" placeholder="اختياري"></label>
     </div>
+    <p class="sec-t">إثبات الدفعة (صورة أو PDF)</p>
+    <div class="atts" id="py-files"></div>
     <p class="err" id="py-err"></p>
-    <button class="btn" id="py-save">حفظ الدفعة</button>`, sh => {
+    <button class="btn" id="py-save">${p ? 'حفظ التعديلات' : 'حفظ الدفعة'}</button>
+    ${p ? '<button class="btn danger" id="py-del">حذف هذه الدفعة</button>' : ''}`, sh => {
     sh.querySelectorAll('.qchip').forEach(b => b.onclick = () => { $('#py-amt', sh).value = String(+b.dataset.v); });
-    $('#py-save', sh).onclick = () => {
+    const fst = filesBox(sh, '#py-files', existing, 'إرفاق إثبات');
+    let saving = false;
+    $('#py-save', sh).onclick = async () => {
+      if (saving) return;
       const a = num($('#py-amt', sh).value); const err = $('#py-err', sh);
+      const date = $('#py-date', sh).value;
       if (!(a > 0)) return err.textContent = 'اكتب مبلغاً صحيحاً.';
-      if (a > c.remaining + 0.0005) return err.textContent = `المبلغ أكبر من المتبقي (${fmt(c.remaining)} ر.ع).`;
-      const kind = c.m > 0 && Math.abs(a - c.payNow) < 0.0005 ? 'installment' : 'partial';
-      const p = { id: rid(), amount: r3(a), date: $('#py-date', sh).value || iso(today()), note: $('#py-note', sh).value.trim(), kind };
-      addPayment(d, p);
+      if (a > maxAmt + 0.0005) return err.textContent = `المبلغ أكبر من المتبقي (${fmt(maxAmt)} ر.ع).`;
+      if (!date) return err.textContent = 'اختر تاريخ الدفعة.';
+      saving = true; $('#py-save', sh).textContent = '…';
+      const target = p || { id: rid() };
+      Object.assign(target, { amount: r3(a), date, note: $('#py-note', sh).value.trim() });
+      delete target.kind;
+      if (!p) { d.payments = d.payments || []; d.payments.push(target); }
+      const failed = await commitFiles(d, fst, existing, 'receipt', target.id);
+      d.updatedAt = Date.now(); save(); share = null; closeSheet(); render();
+      toast(failed ? 'تم الحفظ، وتعذّر حفظ بعض الملفات' : p ? 'تم حفظ التعديلات' : 'تم تسجيل الدفعة');
     };
+    const del = $('#py-del', sh);
+    if (del) del.onclick = () => confirmSheet({ title: 'حذف هذه الدفعة؟', text: 'سيُحذف إثباتها أيضاً، ويُعاد حساب المتبقي.', ok: 'حذف الدفعة', danger: true }, () => removePayment(d, p.id));
   });
+}
+async function removePayment(d, pid) {
+  d.payments = (d.payments || []).filter(x => x.id !== pid);
+  for (const a of (d.attachments || []).filter(x => x.payId === pid)) await dropAtt(d, a);
+  d.updatedAt = Date.now(); save(); share = null; render(); toast('تم حذف الدفعة');
 }
 function payMonth(id) {
   const d = getDebt(id); const c = calc(d);
   if (c.settled) return;
   if (!(c.m > 0)) return paySheet(id);
-  addPayment(d, { id: rid(), amount: r3(c.payNow), date: iso(today()), note: '', kind: 'installment' });
+  addPayment(d, { id: rid(), amount: r3(c.payNow), date: iso(today()), note: '' });
 }
 function addPayment(d, p) {
   d.payments = d.payments || []; d.payments.push(p); d.updatedAt = Date.now();
@@ -918,11 +1044,14 @@ function addPayment(d, p) {
       <b style="font-size:18px">تم تسجيل ${fmt(p.amount)} ر.ع</b>
       <span class="muted">${c.settled ? 'تم سداد السلفية بالكامل 🎉' : c.paidThisMonth ? '✓ مسدَّد هذا الشهر · المتبقي ' + fmt(c.remaining) + ' ر.ع' : 'المتبقي ' + fmt(c.remaining) + ' ر.ع'}</span>
     </div>
-    <button class="btn" id="rc-att">${IC.img} إرفاق صورة الإيصال</button>
+    <button class="btn" id="rc-att">${IC.img} إرفاق إثبات الدفعة (صورة أو PDF)</button>
     <button class="btn ghost" data-close style="height:48px">لاحقاً</button>
     <button class="btn danger" id="rc-undo" style="height:40px;font-size:13px">تراجع عن هذه الدفعة</button>`, sh => {
-    $('#rc-att', sh).onclick = () => pickFile(file => { closeSheet(); addAttachment(d, file, 'receipt', p.id); });
-    $('#rc-undo', sh).onclick = () => { d.payments = d.payments.filter(x => x.id !== p.id); save(); closeSheet(); render(); toast('تم التراجع'); };
+    $('#rc-att', sh).onclick = () => pickFile(async file => {
+      closeSheet(); const meta = await storeFile(file, 'receipt', p.id);
+      if (meta) { d.attachments = d.attachments || []; d.attachments.push(meta); d.updatedAt = Date.now(); save(); render(); toast('تم إرفاق الإثبات'); }
+    });
+    $('#rc-undo', sh).onclick = () => { closeSheet(); removePayment(d, p.id); };
   });
 }
 
@@ -942,47 +1071,8 @@ async function compressImage(file, max = 1800, q = 0.82) {
     return await new Promise(r => cv.toBlob(r, 'image/jpeg', q));
   } finally { URL.revokeObjectURL(url); }
 }
-async function addAttachment(d, file, kind, payId) {
-  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
-  const isImg = file.type.startsWith('image/');
-  if (!isPdf && !isImg) return toast('اختر صورة أو ملف PDF');
-  if (file.size > 25 * 1024 * 1024) return toast('الملف أكبر من 25 ميجابايت');
-  try {
-    const blob = isImg ? (await compressImage(file)) || file : file;
-    const id = rid();
-    await fput(id, blob);
-    d.attachments = d.attachments || [];
-    d.attachments.push({ id, kind, name: file.name || (isPdf ? 'مستند.pdf' : 'صورة.jpg'), type: isPdf ? 'pdf' : 'image', date: iso(today()), payId: payId || null });
-    d.updatedAt = Date.now(); save(); render(); toast('تم إرفاق الملف');
-  } catch (e) { toast('تعذّر حفظ المرفق'); }
-}
-function attKindSheet(id) {
-  const d = getDebt(id);
-  openSheet(`<div class="sh-top"><button data-close>إلغاء</button><b>ماذا تريد أن ترفق؟</b><span style="width:40px"></span></div>
-    <button class="btn ghost" data-k="receipt">${IC.img} إيصال تحويل بنكي</button>
-    <button class="btn ghost" data-k="agreement">${IC.doc} ورقة الاتفاق الموقّعة</button>
-    <button class="btn ghost" data-k="other">${IC.clip} مستند آخر</button>
-    <p class="hint">صورة من الكاميرا أو الألبوم، أو ملف PDF.</p>`, sh => {
-    sh.querySelectorAll('[data-k]').forEach(b => b.onclick = () => pickFile(file => { closeSheet(); addAttachment(d, file, b.dataset.k); }));
-  });
-}
 async function viewAtt(id, attId) {
-  const d = getDebt(id); const a = (d.attachments || []).find(x => x.id === attId); if (!a) return;
-  const url = await fileURL(a.id);
-  const lbl = a.kind === 'receipt' ? 'إيصال تحويل' : a.kind === 'agreement' ? 'ورقة الاتفاق' : 'مستند';
-  openSheet(`<div class="sh-top"><button data-close>إغلاق</button><b>${lbl}</b><span style="width:40px"></span></div>
-    <div class="viewer">${a.type === 'image' ? `<img src="${url}" alt="${lbl}">` : `<a class="btn ghost" href="${url}" target="_blank" rel="noopener">${IC.doc} فتح ملف PDF</a>`}</div>
-    <p class="hint">${fDate(pd(a.date))}</p>
-    <button class="btn ghost" id="av-share">${IC.share} مشاركة</button>
-    <button class="btn danger" id="av-del">حذف المرفق</button>`, sh => {
-    $('#av-share', sh).onclick = async () => { const b = await fget(a.id); if (b) shareFile(b, a.type === 'pdf' ? 'مستند.pdf' : 'إيصال.jpg'); };
-    $('#av-del', sh).onclick = () => confirmSheet({ title: 'حذف المرفق؟', ok: 'حذف', danger: true }, async () => {
-      d.attachments = d.attachments.filter(x => x.id !== a.id); save();
-      try { await fdel(a.id); } catch (e) {}
-      if (urlCache.has(a.id)) { URL.revokeObjectURL(urlCache.get(a.id)); urlCache.delete(a.id); }
-      render(); toast('تم حذف المرفق');
-    });
-  });
+  const d = getDebt(id); const a = (d.attachments || []).find(x => x.id === attId); if (a) previewAtt(a);
 }
 
 /* قوالب الرسائل */
@@ -1183,15 +1273,12 @@ document.addEventListener('click', e => {
     case 'front': frontId = id; render(); break;
     case 'filter': filter = t.dataset.f; frontId = null; render(); break;
     case 'mode': S.settings.mode = { auto: 'light', light: 'dark', dark: 'auto' }[S.settings.mode] || 'auto'; save(); render(); toast('المظهر: ' + modeName(S.settings.mode)); break;
-    case 'paymonth': payMonth(id); break;
+    case 'paymonth': if (Date.now() - lastPayTap < 1500) break; lastPayTap = Date.now(); payMonth(id); break;
     case 'pay': paySheet(id); break;
+    case 'editpay': paySheet(id, t.dataset.p); break;
     case 'delpay': {
       const d = getDebt(id);
-      confirmSheet({ title: 'حذف هذه الدفعة؟', text: 'سيُعاد حساب المتبقي تلقائياً.', ok: 'حذف الدفعة', danger: true }, () => {
-        d.payments = d.payments.filter(p => p.id !== t.dataset.p);
-        (d.attachments || []).forEach(x => { if (x.payId === t.dataset.p) x.payId = null; });
-        save(); render(); toast('تم حذف الدفعة');
-      });
+      confirmSheet({ title: 'حذف هذه الدفعة؟', text: 'سيُحذف إثباتها أيضاً، ويُعاد حساب المتبقي.', ok: 'حذف الدفعة', danger: true }, () => removePayment(d, t.dataset.p));
       break;
     }
     case 'deldebt': {
@@ -1202,7 +1289,6 @@ document.addEventListener('click', e => {
       });
       break;
     }
-    case 'addatt': attKindSheet(id); break;
     case 'viewatt': viewAtt(id, t.dataset.att); break;
     case 'share': share = null; go({ name: 'share', id }); break;
     case 'shareimg': (async () => { const d = getDebt(share.id); const b = await cardBlob(d, 'png'); if (b) shareFile(b, `كشف-${d.name}.png`, share.msg); })(); break;

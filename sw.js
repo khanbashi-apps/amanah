@@ -1,5 +1,5 @@
-/* أمانة v1.1 — يحفظ ملفات التطبيق ليعمل بدون إنترنت */
-const CACHE = 'amanah-v1.1';
+/* أمانة v1.2 — يحفظ ملفات التطبيق ليعمل بدون إنترنت */
+const CACHE = 'amanah-v1.2';
 const ASSETS = [
   './', './index.html', './app.js', './manifest.webmanifest', './lib/jspdf.umd.min.js',
   './icons/icon-32.png', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',

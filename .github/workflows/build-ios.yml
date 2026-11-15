@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  VER: '1.1'
+  VER: '1.2'
 
 jobs:
   ios:

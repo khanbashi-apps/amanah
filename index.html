@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl" data-mode="auto">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>أمانة</title>
 <meta name="description" content="أمانة — ديونك وحقوقك بوضوح">
 <meta name="theme-color" content="#F1F2F4" media="(prefers-color-scheme: light)">
@@ -22,7 +22,7 @@
 @font-face{font-family:"Almarai";font-weight:700;font-display:swap;src:url("fonts/almarai-latin-700-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+2000-206F,U+2212}
 @font-face{font-family:"Almarai";font-weight:800;font-display:swap;src:url("fonts/almarai-latin-800-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+2000-206F,U+2212}
 
-/* أمانة v1.1 — نموذج D: بطاقات مربعة مكدّسة كالمحفظة. التخطيط: عمود هاتف واحد، الملخص ثم التنبيهات ثم البطاقات */
+/* أمانة v1.2 — نموذج D: بطاقات مربعة مكدّسة كالمحفظة. التخطيط: عمود هاتف واحد، الملخص ثم التنبيهات ثم البطاقات */
 :root{
   --bg:#F1F2F4; --surf:#FFFFFF; --surf2:#E7E9ED; --ink:#16181D; --muted:#5D6470; --line:#E3E5E9;
   --plus:#17694A; --minus:#A63D33; --warn-bg:#FFF4E0; --warn:#9A5208; --ok-bg:#E3F3EA; --ok:#17694A;
@@ -46,6 +46,8 @@
 
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+*{touch-action:manipulation}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:0}
@@ -166,6 +168,14 @@ a{color:inherit;text-decoration:none}
 .att img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .att span.lbl{position:absolute;inset-inline:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.6));color:#fff;padding:12px 6px 4px;font-size:10px;text-align:center}
 .att.add{background:transparent;border:1.5px dashed var(--line)}
+.att-x{position:absolute;top:4px;left:4px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:18px;line-height:1;display:grid;place-items:center;z-index:2}
+.li .pl{flex:1;min-width:0;text-align:right;display:flex;flex-direction:column;padding:2px 0}
+.li .pl small{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px}
+.clipn{display:inline-flex;align-items:center;gap:2px;color:var(--accent);font-weight:700}
+.clipn svg{width:14px;height:14px}
+.ovl{position:fixed;inset:0;z-index:95;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:calc(56px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
+.ovl img{max-width:100%;max-height:72vh;border-radius:12px;object-fit:contain}
+.ovl-x{position:absolute;top:calc(12px + env(safe-area-inset-top));left:16px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;font-size:26px;display:grid;place-items:center}
 .att svg{width:20px;height:20px}
 
 /* sheets */
@@ -194,7 +204,7 @@ a{color:inherit;text-decoration:none}
 .calc{background:var(--ok-bg);color:var(--ok);border-radius:16px;padding:12px 14px;font-size:14px;font-weight:700}
 .calc small{display:block;font-weight:400;font-size:12px}
 .err{color:var(--minus);font-size:13px;min-height:1em}
-textarea{width:100%;border:0;background:var(--surf);border-radius:16px;padding:12px 14px;font-size:15px;line-height:1.7;resize:none;min-height:200px;overflow:hidden;color:var(--ink);outline:none}
+textarea{width:100%;border:0;background:var(--surf);border-radius:16px;padding:12px 14px;font-size:16px;line-height:1.7;resize:none;min-height:200px;overflow:hidden;color:var(--ink);outline:none}
 .qchips{display:flex;gap:8px;flex-wrap:wrap}
 .qchip{height:36px;padding:0 12px;border-radius:999px;background:var(--surf);font-size:13px;font-weight:700}
 .big-input{display:flex;align-items:baseline;justify-content:center;gap:8px;padding:8px 0}
@@ -206,7 +216,7 @@ textarea{width:100%;border:0;background:var(--surf);border-radius:16px;padding:1
 .trow{display:flex;align-items:center;gap:10px;padding:6px 14px;min-height:52px;border-top:1px solid var(--line)}
 .trow:first-child{border-top:0}
 .trow .tl{width:92px;flex:none;font-size:13px;color:var(--muted)}
-.trow input[type="text"]{flex:1;min-width:0;border:0;background:transparent;font-size:15px;outline:none;color:var(--ink);height:40px}
+.trow input[type="text"]{flex:1;min-width:0;border:0;background:transparent;font-size:16px;outline:none;color:var(--ink);height:40px}
 .trow input[type="text"]:disabled{opacity:.4}
 .switch{position:relative;width:48px;height:30px;flex:none}
 .switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
