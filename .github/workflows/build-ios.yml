@@ -1,0 +1,88 @@
+name: بناء أمانة للآيفون (IPA)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'app.js'
+      - 'amanah.wav'
+      - 'capacitor.config.json'
+      - 'package.json'
+      - 'assets/**'
+      - 'scripts/**'
+      - '.github/workflows/build-ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-ios
+  cancel-in-progress: true
+
+env:
+  VER: '1.1'
+
+jobs:
+  ios:
+    name: IPA (بدون توقيع)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: بناء IPA
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/build-ios.sh 2>&1 | tee ios.log
+      - name: حفظ الناتج والسجل
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: |
+            ios.log
+            out/*.ipa
+          if-no-files-found: ignore
+
+  publish:
+    name: نشر الإصدار والسجل
+    needs: [ios]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+      - name: نشر السجل في فرع build-logs
+        shell: bash
+        run: |
+          mkdir -p /tmp/logs
+          find dl -name '*.log' -exec sh -c 'tail -c 400000 "$1" > "/tmp/logs/$(basename "$1")"' _ {} \;
+          {
+            echo "run=${{ github.run_number }}"
+            echo "sha=${{ github.sha }}"
+            echo "ios=${{ needs.ios.result }}"
+            find dl -name '*.ipa' | sed 's/^/file=/'
+          } > /tmp/logs/status.txt
+          cd /tmp/logs
+          git init -q -b build-logs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -q -m "سجل البناء رقم ${{ github.run_number }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" build-logs
+      - name: نشر IPA كإصدار
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          files=$(find dl -name '*.ipa' | tr '\n' ' ')
+          if [ -z "$files" ]; then echo "لا يوجد IPA للنشر"; exit 0; fi
+          tag="v${VER}-build${{ github.run_number }}"
+          gh release create "$tag" $files --target "${{ github.sha }}" --latest \
+            --title "أمانة v${VER} (بناء ${{ github.run_number }})" \
+            --notes "IPA غير موقّع: وقّعه بتطبيق التوقيع ثم ثبّته. التنبيهات تعمل بعد السماح بها عند أول تشغيل."

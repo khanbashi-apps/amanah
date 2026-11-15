@@ -1,0 +1,10 @@
+{
+  "appId": "com.khanbashi.amanah",
+  "appName": "أمانة",
+  "webDir": "www",
+  "backgroundColor": "#F1F2F4",
+  "ios": { "contentInset": "never" },
+  "plugins": {
+    "LocalNotifications": { "presentationOptions": ["badge", "sound", "banner", "list"] }
+  }
+}
