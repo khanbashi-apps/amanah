@@ -1,0 +1,4 @@
+run=2
+sha=3306847aa1cb139a50c628edeea5230ba11ffb8b
+ios=success
+file=dl/ios/out/Amanah-v1.2-unsigned.ipa
